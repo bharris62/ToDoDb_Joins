@@ -5,10 +5,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Main {
-    /**
-     * Track to-do items.
-     * Write a program that constantly loops and provides an option to list toggle and remove items.
-     */
+
 
     public static void insertUser(Connection conn, String userName) throws SQLException {
         PreparedStatement stmt = conn.prepareStatement("INSERT INTO users VALUES (NULL, ?);");
@@ -70,13 +67,29 @@ public class Main {
         stmt.execute();
     }
 
+    public static void deleteTodo(Connection conn, int id) throws SQLException {
+        PreparedStatement stmt = conn.prepareStatement("DELETE FROM todos WHERE id = ?");
+        stmt.setInt(1, id);
+        stmt.execute();
+    }
+
+    public static void updateTodo(Connection conn,String newtext, int id) throws SQLException {
+        PreparedStatement stmt = conn.prepareStatement("UPDATE todos SET text=? WHERE id=?");
+        stmt.setString(1, newtext);
+        stmt.setInt(2,id);
+        stmt.execute();
+    }
+
+    public static void createTables(Connection conn) throws SQLException {
+        Statement stmt = conn.createStatement();
+        stmt.execute("CREATE TABLE IF NOT EXISTS todos (id IDENTITY, owner_id INT, text VARCHAR, is_done BOOLEAN);");
+        stmt.execute("CREATE TABLE IF NOT EXISTS users (id IDENTITY, username VARCHAR);");
+    }
 
     public static void main(String[] args) throws SQLException {
         Server.createWebServer().start();
         Connection conn = DriverManager.getConnection("jdbc:h2:./main");
-        Statement stmt = conn.createStatement();
-        stmt.execute("CREATE TABLE IF NOT EXISTS todos (id IDENTITY, owner_id INT, text VARCHAR, is_done BOOLEAN);");
-        stmt.execute("CREATE TABLE IF NOT EXISTS users (id IDENTITY, username VARCHAR);");
+        createTables(conn);
 
         //ArrayList<ToDoItem> items = new ArrayList<>();      // now store in db.
         Scanner scanner = new Scanner(System.in);
@@ -89,7 +102,7 @@ public class Main {
             user = selectUser(conn, name);
         }
         while (true) {
-            System.out.println("1.) Create a To-Do item \n2.) Toggle a To-Do item \n3.) List To-Do items");
+            System.out.println("1.) Create a To-Do item \n2.) Toggle a To-Do item \n3.) List To-Do items \n4.)Update Todo \n5.) Delete Todo");
             String option = scanner.nextLine();
             if (option.equals("1")) {
                 System.out.println("Enter your to-do item: ");
@@ -101,7 +114,6 @@ public class Main {
                 int itemNum = Integer.parseInt(scanner.nextLine());
                 toggleToDo(conn, itemNum);
             } else if (option.equals("3")) {
-                //int i = 1;
                 String status = "";
                 ArrayList<ToDoItem> items = selectToDos(conn,user.id);
                 for (ToDoItem item : items) {
@@ -114,7 +126,25 @@ public class Main {
                     //i++;
                 }
                 System.out.println("-----------------------");
-            } else {
+            } else if (option.equals("4")) {
+                System.out.println("What item would you like to update? ");
+                String num = scanner.nextLine();
+                System.out.println("What would you like to update it to? ");
+                String resp = scanner.nextLine();
+                updateTodo(conn, resp,Integer.parseInt(num));
+
+            } else if(option.equals("5")) {
+                System.out.println("What item would you like to delete? ");
+                String num = scanner.nextLine();
+
+                ToDoItem item = selectToDoItem(conn, Integer.parseInt(num));
+                if(item.owner == user.id) {
+                    deleteTodo(conn, Integer.parseInt(num));
+                } else {
+                    System.out.println("That is not your item.");
+                }
+
+            }else {
                 System.out.println("Invalid option.  Try again.");
             }
         }
