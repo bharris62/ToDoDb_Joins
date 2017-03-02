@@ -29,20 +29,22 @@ public class Main {
 
     public static void insertToDo(Connection conn, int ownerId, String text) throws SQLException {
         PreparedStatement stmt = conn.prepareStatement("INSERT INTO todos VALUES (NULL, ?,?, false);");
-        stmt.setString(1, text);
-        stmt.setInt(2, ownerId);
+        stmt.setInt(1, ownerId);
+        stmt.setString(2, text);
+
         stmt.execute();
     }
 
-    public static ArrayList<ToDoItem> selectToDos(Connection conn) throws SQLException {
+    public static ArrayList<ToDoItem> selectToDos(Connection conn, int ownerId) throws SQLException {
         ArrayList<ToDoItem> items = new ArrayList<>();
-        PreparedStatement stmt = conn.prepareStatement("SELECT * FROM todos;");
+        PreparedStatement stmt = conn.prepareStatement("SELECT * FROM todos JOIN users ON todos.owner_id = users.id WHERE owner_id = ?;");
+        stmt.setInt(1, ownerId);
         ResultSet results = stmt.executeQuery();
         while(results.next()) {
             int id = results.getInt("id");
             String text = results.getString("text");
             boolean is_done  = results.getBoolean("is_done");
-            items.add(new ToDoItem(id,0, text, is_done));
+            items.add(new ToDoItem(id, ownerId, text, is_done));
         }
         return items;
 
@@ -50,11 +52,11 @@ public class Main {
 
     public static ToDoItem selectToDoItem(Connection conn, int id) throws SQLException {
         PreparedStatement stmt = conn.prepareStatement(
-                "SELECT * FROM todos JOIN users ON todos.owner_id = users.id WHERE messages.id = ?;");
+                "SELECT * FROM todos JOIN users ON todos.owner_id = users.id WHERE todos.id = ?;");
         stmt.setInt(1, id);
         ResultSet results = stmt.executeQuery();
         if (results.next()) {
-            String owner = results.getString("users.username");
+            int owner = results.getInt("users.id");
             String text = results.getString("text");
             boolean isDone = results.getBoolean("is_done");
             return new ToDoItem(id, owner, text, isDone);
@@ -73,20 +75,26 @@ public class Main {
         Server.createWebServer().start();
         Connection conn = DriverManager.getConnection("jdbc:h2:./main");
         Statement stmt = conn.createStatement();
-        stmt.execute("CREATE TABLE IF NOT EXISTS todos (id IDENTITY, int owner_id, text VARCHAR, is_done BOOLEAN);");
+        stmt.execute("CREATE TABLE IF NOT EXISTS todos (id IDENTITY, owner_id INT, text VARCHAR, is_done BOOLEAN);");
         stmt.execute("CREATE TABLE IF NOT EXISTS users (id IDENTITY, username VARCHAR);");
 
         //ArrayList<ToDoItem> items = new ArrayList<>();      // now store in db.
         Scanner scanner = new Scanner(System.in);
-
+        System.out.println("What is your name? ");
+        Scanner reader = new Scanner(System.in);
+        String name = reader.nextLine();
+        User user = selectUser(conn, name);
+        if(user == null) {
+            insertUser(conn, name);
+            user = selectUser(conn, name);
+        }
         while (true) {
             System.out.println("1.) Create a To-Do item \n2.) Toggle a To-Do item \n3.) List To-Do items");
             String option = scanner.nextLine();
-
             if (option.equals("1")) {
                 System.out.println("Enter your to-do item: ");
                 String text = scanner.nextLine();
-                insertToDo(conn, text);
+                insertToDo(conn,user.id, text);
 
             } else if (option.equals("2")) {
                 System.out.println("Enter number of the item you want to toggle: ");
@@ -95,7 +103,7 @@ public class Main {
             } else if (option.equals("3")) {
                 //int i = 1;
                 String status = "";
-                ArrayList<ToDoItem> items = selectToDos(conn);
+                ArrayList<ToDoItem> items = selectToDos(conn,user.id);
                 for (ToDoItem item : items) {
                     if (item.isDone) {
                         status = " [X]";
